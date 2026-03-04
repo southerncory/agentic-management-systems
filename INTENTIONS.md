@@ -6,545 +6,558 @@
 
 ## Vision
 
-**One sentence:** A unified control plane for every AI agent and automation system in an organization.
+**One sentence:** A modular control plane for AI agents and automation systems — deploy only what you need.
 
 **The problem we solve:** Organizations are deploying AI agents and automation systems faster than they can manage them. There is no visibility into what agents are doing, no control over costs, no systematic quality assurance, and no audit trail for compliance. This creates operational risk that compounds silently until it becomes a crisis.
 
-**Our position:** We provide the infrastructure layer that makes AI agents and automation systems observable, controllable, and accountable — enabling organizations to scale automation confidently.
+**Our position:** We provide modular infrastructure that makes AI agents and automation systems observable, controllable, and accountable — enabling organizations to start small and scale confidently.
+
+**Our approach:** Build incrementally. Ship the core platform with one module. Get customers. Learn what they need. Build the next module based on demand. The platform grows with validated customer needs, not assumptions.
 
 ---
 
-## Core Capabilities
+## Architecture Philosophy
 
-### 1. Unified Agent Registry
-A complete inventory of every agent in the organization.
+### Modular by Design
 
-- **What it tracks:**
-  - Agent identity (name, version, owner, team)
-  - Capabilities (tools, permissions, access scope)
-  - Configuration (prompts, models, parameters)
-  - Dependencies (APIs, services, data sources)
-  - Status (active, paused, deprecated)
-  - Metadata (created date, last modified, deployment environment)
-
-- **Why it matters:** You can't manage what you can't see. Most organizations have no idea how many agents they're running or what they can do.
-
-### 2. Full Trace Observability
-Every decision, action, and outcome — logged and searchable.
-
-- **What it captures:**
-  - Request/response payloads
-  - LLM calls (prompts, completions, token counts, latency)
-  - Tool/function calls (inputs, outputs, success/failure)
-  - Decision points and branching logic
-  - Errors and exceptions
-  - Timing and performance metrics
-
-- **Data model:** OpenTelemetry-compatible spans with custom semantic conventions for AI/agent workloads.
-
-- **Why it matters:** When something goes wrong, you need to understand exactly what happened. When something goes right, you need to know why so you can replicate it.
-
-### 3. Cost Intelligence
-Real-time spend tracking and budget controls.
-
-- **What it tracks:**
-  - Token usage per model, per agent, per workflow, per customer
-  - API call costs (LLM providers, external services)
-  - Compute costs (if self-hosted inference)
-  - Cost attribution and chargeback
-
-- **Controls:**
-  - Budget limits (per agent, per team, per time period)
-  - Rate limiting and throttling
-  - Alerts on spend anomalies
-  - Cost forecasting
-
-- **Why it matters:** Agentic workloads can burn through budgets unpredictably. A single runaway loop can cost thousands. Organizations need visibility and guardrails.
-
-### 4. Anomaly Detection & Alerting
-Proactive monitoring for operational issues.
-
-- **Detection targets:**
-  - Failure rate spikes
-  - Latency degradation
-  - Cost anomalies
-  - Behavioral drift (output distribution changes)
-  - Security anomalies (unusual access patterns)
-
-- **Alert channels:**
-  - Slack, Teams, Discord
-  - Email
-  - PagerDuty, Opsgenie
-  - Webhooks
-
-- **Why it matters:** Problems should be detected before users notice. Waiting for complaints means the damage is already done.
-
-### 5. Evaluation Framework
-Continuous quality assurance for agent outputs.
-
-- **Evaluation types:**
-  - Correctness checks (expected vs actual)
-  - Regression testing (against baseline)
-  - Safety checks (harmful content, PII leakage)
-  - Quality scores (relevance, coherence, helpfulness)
-  - Custom evaluators (domain-specific criteria)
-
-- **Execution modes:**
-  - Real-time (sample-based, in production)
-  - Batch (scheduled, against historical data)
-  - Pre-deployment (CI/CD integration)
-
-- **Why it matters:** Agent quality degrades over time due to model updates, prompt drift, and distribution shift. Without systematic evaluation, you're flying blind.
-
-### 6. Access Control & Audit
-Security, permissions, and compliance infrastructure.
-
-- **Access control:**
-  - Role-based access (RBAC) for the AMS platform itself
-  - Agent-level permissions (what each agent can access/do)
-  - Approval workflows for sensitive actions
-
-- **Audit capabilities:**
-  - Immutable audit log of all agent actions
-  - User activity logging within AMS
-  - Compliance reports (who did what, when, why)
-  - Data retention policies
-
-- **Why it matters:** Regulated industries need explainability and accountability. Even non-regulated organizations need to answer "what happened?" when things go wrong.
-
----
-
-## Technical Architecture
-
-### High-Level Components
+AMS is not a monolithic platform. It's a core foundation with independent feature modules that customers enable based on their needs.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         AMS Control Plane                           │
-├─────────────┬─────────────┬─────────────┬─────────────┬────────────┤
-│   Registry  │  Collector  │  Analytics  │   Alerting  │    API     │
-│   Service   │   Service   │   Engine    │   Service   │  Gateway   │
-└─────────────┴──────┬──────┴─────────────┴─────────────┴────────────┘
-                     │
-         ┌───────────┴───────────┐
-         │    Data Platform      │
-         ├───────────────────────┤
-         │  Time-Series Store    │  ← Metrics, costs, latencies
-         │  Document Store       │  ← Traces, logs, configs
-         │  Search Index         │  ← Full-text search over traces
-         │  Object Store         │  ← Payloads, artifacts
-         └───────────────────────┘
-                     │
-    ┌────────────────┼────────────────┐
-    │                │                │
-┌───┴───┐       ┌────┴────┐      ┌────┴────┐
-│ SDK   │       │  Agent  │      │  Agent  │
-│ (Py)  │       │   A     │      │   B     │
-└───────┘       └─────────┘      └─────────┘
+│                        AMS Core Platform                            │
+├─────────────────────────────────────────────────────────────────────┤
+│  Auth & Accounts  │  Agent Registry  │  Ingestion  │  Dashboard    │
+└─────────────────────────────────────────────────────────────────────┘
+                                 │
+        ┌────────────┬───────────┼───────────┬────────────┐
+        │            │           │           │            │
+   ┌────┴────┐ ┌─────┴─────┐ ┌───┴───┐ ┌─────┴─────┐ ┌────┴────┐
+   │  Cost   │ │  Trace    │ │ Alert │ │   Eval    │ │  Audit  │
+   │ Intel   │ │ Observ.   │ │Engine │ │ Framework │ │Compliance│
+   └─────────┘ └───────────┘ └───────┘ └───────────┘ └─────────┘
+      MODULE       MODULE      MODULE      MODULE       MODULE
 ```
 
-### Component Breakdown
-
-#### 1. Registry Service
-- **Purpose:** Store and serve agent metadata
-- **Data store:** PostgreSQL (relational, for complex queries)
-- **API:** REST + GraphQL
-- **Features:**
-  - CRUD for agents, versions, configurations
-  - Tagging and grouping
-  - Dependency tracking
-  - Search and filtering
-
-#### 2. Collector Service
-- **Purpose:** Ingest telemetry from agents
-- **Protocol:** OTLP (OpenTelemetry Protocol) over gRPC and HTTP
-- **Processing:**
-  - Validation and enrichment
-  - Sampling (configurable)
-  - Buffering and batching
-  - Fan-out to storage backends
-- **Scale target:** 100K+ spans/second per collector instance
-
-#### 3. Analytics Engine
-- **Purpose:** Compute metrics, aggregations, and insights
-- **Functions:**
-  - Real-time aggregations (latency percentiles, error rates, costs)
-  - Batch analytics (trends, comparisons, forecasts)
-  - Anomaly detection (statistical, ML-based)
-  - Evaluation scoring
-- **Compute:** Stream processing (Kafka Streams, Flink, or similar) + batch jobs
-
-#### 4. Alerting Service
-- **Purpose:** Monitor conditions and dispatch notifications
-- **Features:**
-  - Rule-based alerts (thresholds, conditions)
-  - Anomaly-based alerts (from Analytics Engine)
-  - Alert routing and escalation
-  - Deduplication and throttling
-  - Incident tracking
-
-#### 5. API Gateway
-- **Purpose:** Unified API surface for all clients
-- **Features:**
-  - Authentication (API keys, OAuth, OIDC)
-  - Authorization (RBAC)
-  - Rate limiting
-  - Request routing
-  - API versioning
-
-#### 6. Web Dashboard
-- **Purpose:** Human interface for AMS
-- **Features:**
-  - Agent inventory and detail views
-  - Trace explorer
-  - Cost dashboards
-  - Alert management
-  - Settings and configuration
-
-### Data Platform
-
-| Store | Technology Options | Purpose |
-|-------|-------------------|---------|
-| Time-Series | ClickHouse, TimescaleDB, InfluxDB | Metrics, costs, latencies |
-| Document | PostgreSQL (JSONB), MongoDB | Traces, configs, logs |
-| Search | Elasticsearch, Meilisearch | Full-text search over traces |
-| Object | S3, MinIO, GCS | Large payloads, artifacts |
-| Cache | Redis, DragonflyDB | Hot data, rate limiting |
-| Queue | Kafka, Redpanda, NATS | Event streaming, ingestion buffer |
-
-### SDK Design
-
-We provide SDKs that agents integrate to send telemetry to AMS.
-
-**Principles:**
-- Minimal footprint (lightweight, no heavy dependencies)
-- Non-blocking (async, doesn't slow down agent execution)
-- Fail-safe (if AMS is down, agent still works)
-- Framework-agnostic (works with LangChain, LlamaIndex, custom agents, etc.)
-
-**Initial SDKs:**
-- Python (primary)
-- TypeScript/Node.js
-- REST API (for any language)
-
-**SDK Responsibilities:**
-- Auto-instrument common libraries (OpenAI, Anthropic, LangChain, etc.)
-- Capture spans, metrics, and logs
-- Buffer and batch transmissions
-- Handle retries and backpressure
+**Why modular:**
+- Customers pay for what they use
+- We build what customers actually want
+- Lower barrier to entry (start with one module, add more)
+- Each module validates independently
+- Reduces upfront engineering investment
 
 ---
 
-## Data Models
+## Core Platform
 
-### Agent
+The foundation that all modules depend on. Always included.
 
+### Auth & Accounts
+- User authentication (email/password, SSO later)
+- Organization/workspace management
+- API key management
+- Basic RBAC (admin, member, viewer)
+
+### Agent Registry
+- CRUD for agents
+- Agent metadata (name, version, owner, status, environment)
+- Tagging and grouping
+- Configuration storage
+- Dependency tracking
+
+**This is foundational** — you can't manage agents you don't know about. Every module references the registry.
+
+### Ingestion Gateway
+- Single endpoint for all telemetry
+- Protocol: REST (simple) + OTLP (standard) 
+- Authentication via API key
+- Routes data to enabled modules
+- Buffers/batches for efficiency
+
+### Dashboard Shell
+- Navigation and layout
+- Module mounting points
+- Settings and configuration
+- User/org management UI
+
+---
+
+## Feature Modules
+
+Each module is independent. Customers enable what they need. Modules have defined dependencies.
+
+### Module 1: Cost Intelligence
+
+**Purpose:** Track and control AI/automation spend.
+
+**Dependencies:** Core only
+
+**Capabilities:**
+- Token usage tracking (by agent, model, workflow, customer)
+- Cost calculation (configurable rates per provider/model)
+- Budget limits and alerts
+- Spend dashboards with drill-down
+- Cost attribution and tagging
+- Export for chargeback
+
+**Data captured:**
 ```typescript
-interface Agent {
-  id: string;                    // UUID
-  name: string;                  // Human-readable name
-  slug: string;                  // URL-safe identifier
-  version: string;               // Semantic version
-  description: string;
-  owner: {
-    userId: string;
-    teamId: string;
-  };
-  status: 'active' | 'paused' | 'deprecated' | 'archived';
-  capabilities: {
-    tools: Tool[];
-    permissions: Permission[];
-    models: ModelConfig[];
-  };
-  config: Record<string, any>;   // Agent-specific configuration
-  metadata: {
-    createdAt: Date;
-    updatedAt: Date;
-    deployedAt: Date;
-    environment: 'development' | 'staging' | 'production';
-    tags: string[];
+interface CostEvent {
+  agentId: string;
+  timestamp: Date;
+  provider: string;        // 'openai', 'anthropic', etc.
+  model: string;
+  tokensPrompt: number;
+  tokensCompletion: number;
+  cost: number;            // Calculated USD
+  attribution?: {
+    customerId?: string;
+    workflowId?: string;
+    tags?: string[];
   };
 }
 ```
 
-### Span (Trace Unit)
+**Why first:** Immediate tangible value. Easy to show ROI. Every agent user has this problem.
 
+---
+
+### Module 2: Trace Observability
+
+**Purpose:** See exactly what agents are doing, step by step.
+
+**Dependencies:** Core only
+
+**Capabilities:**
+- Full trace capture (requests, LLM calls, tool calls, responses)
+- Trace viewer UI (waterfall, timeline, detail panels)
+- Search and filtering
+- Payload inspection (prompts, completions, tool inputs/outputs)
+- Latency breakdown
+- Error highlighting
+
+**Data captured:**
 ```typescript
 interface Span {
-  traceId: string;               // Links spans in a single request
-  spanId: string;                // Unique span identifier
-  parentSpanId?: string;         // Parent span (for nesting)
-  agentId: string;               // Which agent produced this
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  agentId: string;
   
-  name: string;                  // Operation name
+  name: string;
   kind: 'llm' | 'tool' | 'chain' | 'retrieval' | 'custom';
   
   startTime: Date;
   endTime: Date;
-  duration: number;              // Milliseconds
+  duration: number;
   
   status: 'ok' | 'error';
-  error?: {
-    type: string;
-    message: string;
-    stack?: string;
-  };
+  error?: { type: string; message: string; stack?: string; };
   
   attributes: {
-    // LLM-specific
     'llm.provider'?: string;
     'llm.model'?: string;
     'llm.prompt'?: string;
     'llm.completion'?: string;
     'llm.tokens.prompt'?: number;
     'llm.tokens.completion'?: number;
-    'llm.tokens.total'?: number;
-    'llm.cost'?: number;
-    
-    // Tool-specific
     'tool.name'?: string;
     'tool.input'?: any;
     'tool.output'?: any;
-    
-    // Custom attributes
     [key: string]: any;
   };
-  
-  events: SpanEvent[];           // Timestamped events within span
 }
 ```
 
-### Cost Record
+**Why second:** Debugging is the other universal pain point. "WTF happened?" needs an answer.
 
-```typescript
-interface CostRecord {
-  id: string;
-  agentId: string;
-  spanId?: string;
-  
-  timestamp: Date;
-  
-  category: 'llm' | 'api' | 'compute' | 'storage' | 'other';
-  provider: string;              // e.g., 'openai', 'anthropic'
-  model?: string;
-  
-  units: {
-    type: 'tokens' | 'requests' | 'seconds' | 'bytes';
-    quantity: number;
-  };
-  
-  cost: {
-    amount: number;
-    currency: 'USD';
-  };
-  
-  attribution: {
-    teamId?: string;
-    customerId?: string;
-    workflowId?: string;
-  };
-}
-```
+---
 
-### Alert Rule
+### Module 3: Alerting Engine
 
+**Purpose:** Proactive notification when things go wrong.
+
+**Dependencies:** Core + (Cost Intelligence OR Trace Observability)
+
+Alerting needs data to alert on. Customer must have at least one data-producing module enabled.
+
+**Capabilities:**
+- Rule-based alerts (thresholds, conditions)
+- Anomaly detection (statistical baselines)
+- Alert routing (Slack, email, webhook, PagerDuty)
+- Escalation policies
+- Alert history and acknowledgment
+- Deduplication and throttling
+
+**Alert types:**
+- Cost: Spend exceeds budget, unexpected spike
+- Traces: Error rate spike, latency degradation
+- Availability: Agent not reporting, ingestion gap
+
+**Data model:**
 ```typescript
 interface AlertRule {
   id: string;
   name: string;
-  description: string;
   enabled: boolean;
   
   scope: {
     agentIds?: string[];
-    teamIds?: string[];
     tags?: string[];
   };
   
   condition: {
-    metric: string;              // e.g., 'error_rate', 'p99_latency', 'cost'
-    operator: 'gt' | 'lt' | 'eq' | 'gte' | 'lte';
+    metric: string;           // 'error_rate', 'p99_latency', 'daily_cost'
+    operator: 'gt' | 'lt' | 'gte' | 'lte';
     threshold: number;
-    window: string;              // e.g., '5m', '1h'
+    window: string;           // '5m', '1h', '24h'
   };
   
-  notification: {
-    channels: string[];          // Channel IDs
-    message?: string;            // Custom message template
-    throttle: string;            // e.g., '15m' (don't re-alert within this window)
-  };
-  
-  metadata: {
-    createdAt: Date;
-    updatedAt: Date;
-    createdBy: string;
+  notifications: {
+    channels: string[];       // Slack channel IDs, email addresses, etc.
+    throttle: string;         // '15m' — don't re-alert within window
   };
 }
 ```
 
 ---
 
-## Tech Stack (Recommended)
+### Module 4: Evaluation Framework
 
-### Backend
-| Layer | Choice | Rationale |
-|-------|--------|-----------|
-| Language | Go | Performance, concurrency, single binary deployment |
-| API Framework | Chi or Echo | Lightweight, fast, idiomatic |
-| gRPC | grpc-go | For OTLP ingestion |
-| Database | PostgreSQL | Reliability, JSONB flexibility, ecosystem |
-| Time-Series | ClickHouse | Best-in-class for analytics at scale |
-| Queue | Redpanda | Kafka-compatible, simpler to operate |
-| Cache | Redis | Industry standard, feature-rich |
-| Search | Meilisearch | Simpler than Elastic, fast, good DX |
+**Purpose:** Continuous quality assurance for agent outputs.
 
-### Frontend
-| Layer | Choice | Rationale |
-|-------|--------|-----------|
-| Framework | React + TypeScript | Ecosystem, hiring, component libraries |
-| State | Zustand or Jotai | Simple, performant |
-| Styling | Tailwind CSS | Utility-first, fast iteration |
-| Charts | Recharts or Tremor | React-native, good for dashboards |
-| Tables | TanStack Table | Powerful, flexible |
+**Dependencies:** Core + Trace Observability
 
-### Infrastructure
-| Layer | Choice | Rationale |
-|-------|--------|-----------|
-| Container | Docker | Standard |
-| Orchestration | Kubernetes | Scale, ecosystem (optional for MVP) |
-| CI/CD | GitHub Actions | Integrated, simple |
-| Secrets | Doppler or AWS Secrets Manager | Secure, auditable |
-| Monitoring | Prometheus + Grafana | For AMS itself |
+Evals run against trace data. Trace module must be enabled.
 
-### SDKs
-| Language | Tooling |
-|----------|---------|
-| Python | Standard library + httpx (async HTTP) |
-| TypeScript | Native fetch + OpenTelemetry JS |
+**Capabilities:**
+- Correctness checks (expected vs actual)
+- Regression testing (compare against baseline)
+- Safety checks (PII, harmful content)
+- Quality scoring (relevance, coherence)
+- Custom evaluators (user-defined criteria)
+- Scheduled batch evals
+- Pre-deployment CI integration
+
+**Evaluation types:**
+```typescript
+interface Evaluator {
+  id: string;
+  name: string;
+  type: 'deterministic' | 'llm_judge' | 'custom';
+  
+  // For deterministic
+  rules?: {
+    field: string;
+    condition: string;
+    expected: any;
+  }[];
+  
+  // For LLM judge
+  judgeConfig?: {
+    model: string;
+    prompt: string;
+    scoreRange: [number, number];
+  };
+  
+  // For custom
+  webhookUrl?: string;
+}
+```
+
+---
+
+### Module 5: Audit & Compliance
+
+**Purpose:** Security, permissions, and compliance infrastructure.
+
+**Dependencies:** Core only
+
+**Capabilities:**
+- Immutable audit log of all agent actions
+- User activity logging within AMS
+- Compliance reports (who, what, when, why)
+- Data retention policies
+- Export for auditors
+- Enhanced RBAC (custom roles, fine-grained permissions)
+
+**Audit record:**
+```typescript
+interface AuditEntry {
+  id: string;
+  timestamp: Date;
+  
+  actor: {
+    type: 'agent' | 'user' | 'system';
+    id: string;
+    name: string;
+  };
+  
+  action: string;             // 'llm.completion', 'tool.execute', 'config.update'
+  resource: string;           // What was acted upon
+  
+  outcome: 'success' | 'failure';
+  
+  details: Record<string, any>;
+  
+  retention: {
+    policy: string;
+    expiresAt?: Date;
+  };
+}
+```
+
+---
+
+## Module Dependency Matrix
+
+| Module | Requires |
+|--------|----------|
+| Cost Intelligence | Core |
+| Trace Observability | Core |
+| Alerting Engine | Core + (Cost OR Traces) |
+| Evaluation Framework | Core + Traces |
+| Audit & Compliance | Core |
+
+---
+
+## Tech Stack
+
+### Core Platform
+
+| Component | Technology | Rationale |
+|-----------|------------|-----------|
+| Language | Go | Performance, single binary, good for services |
+| API | REST (Chi/Echo) | Simple, universal |
+| Database | PostgreSQL | Reliable, JSONB for flexibility, great ecosystem |
+| Auth | Custom + JWT | Keep it simple initially, add SSO later |
+| Frontend | React + TypeScript | Ecosystem, hiring, component libraries |
+| Styling | Tailwind CSS | Fast iteration |
+
+### Module-Specific Additions
+
+| Module | Additional Tech | Why |
+|--------|-----------------|-----|
+| Cost Intelligence | PostgreSQL (same DB) | Aggregations are simple, no new infra |
+| Trace Observability | ClickHouse | Columnar, built for traces at scale |
+| Alerting Engine | Redis (for state) | Fast checks, rule evaluation |
+| Evaluation Framework | Job queue (River/Faktory) | Async eval execution |
+| Audit & Compliance | PostgreSQL (append-only table) | Immutability, querying |
+
+### Principle: Add Infrastructure Only When Needed
+
+- Phase 1: PostgreSQL only
+- Phase 2: Add ClickHouse when trace volume requires it
+- Phase 3: Add Redis when alerting needs fast state
+- Don't pre-optimize. Let customer scale drive infrastructure decisions.
+
+---
+
+## SDK Strategy
+
+### Core SDK (ships with platform)
+
+Minimal, non-blocking, fail-safe.
+
+```python
+from ams import AMS
+
+ams = AMS(api_key="...", agent_id="my-agent")
+
+# Register cost event
+ams.track_cost(
+    provider="openai",
+    model="gpt-4",
+    tokens_prompt=150,
+    tokens_completion=80
+)
+
+# Register trace span
+with ams.span("llm.completion", kind="llm") as span:
+    span.set_attribute("llm.model", "gpt-4")
+    response = openai.chat.completions.create(...)
+    span.set_attribute("llm.completion", response.choices[0].message.content)
+```
+
+### Auto-Instrumentation (later)
+
+- OpenAI SDK wrapper
+- Anthropic SDK wrapper  
+- LangChain callback handler
+- LlamaIndex callback handler
+
+Build these as customer demand reveals which frameworks matter.
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Foundation (MVP)
-**Goal:** Basic observability for a single organization's agents.
+### Phase 1: Core + Cost Intelligence
+**Goal:** Paying customers tracking agent costs.
 
 **Deliverables:**
-- [ ] Agent Registry (CRUD, basic UI)
+- [ ] Core platform (auth, registry, ingestion, dashboard shell)
+- [ ] Cost Intelligence module (full)
 - [ ] Python SDK (manual instrumentation)
-- [ ] Trace ingestion (OTLP-compatible)
-- [ ] Trace viewer (basic UI)
-- [ ] Cost tracking (token counts, simple cost calculation)
-- [ ] Basic dashboard
+- [ ] Basic documentation
 
-**Tech:**
-- Single PostgreSQL database (traces stored as JSONB)
-- Monolithic Go service
-- Simple React dashboard
-- No Kubernetes (single VM deployment)
+**Tech:** PostgreSQL only. Single Go service. Simple React dashboard.
+
+**Deployment:** Single VM or Railway/Render. No Kubernetes.
 
 **Timeline:** 4-6 weeks
 
+**Exit criteria:** 3 paying customers using cost tracking.
+
 ---
 
-### Phase 2: Intelligence
-**Goal:** Actionable insights and proactive alerting.
+### Phase 2: Trace Observability
+**Goal:** Customers can debug agent behavior.
 
 **Deliverables:**
-- [ ] Real-time metrics aggregation
-- [ ] Anomaly detection (statistical baselines)
-- [ ] Alert rules engine
-- [ ] Notification integrations (Slack, email)
-- [ ] Cost dashboards with drill-down
-- [ ] Python SDK auto-instrumentation (OpenAI, Anthropic, LangChain)
+- [ ] Trace Observability module (full)
+- [ ] Trace viewer UI
+- [ ] SDK span instrumentation
+- [ ] Search and filtering
 
-**Tech:**
-- Add ClickHouse for analytics
-- Add Redis for real-time aggregations
-- Add Redpanda for event streaming
+**Tech:** Add ClickHouse for trace storage.
+
+**Timeline:** 4-6 weeks
+
+**Exit criteria:** Existing customers adopt traces. 2+ new customers for traces specifically.
+
+---
+
+### Phase 3: Alerting Engine
+**Goal:** Proactive monitoring, not just dashboards.
+
+**Deliverables:**
+- [ ] Alerting Engine module
+- [ ] Rule builder UI
+- [ ] Slack + email integrations
+- [ ] Anomaly detection (basic)
+
+**Tech:** Add Redis for alert state.
+
+**Timeline:** 4-6 weeks
+
+**Exit criteria:** Customers creating alerts. Alert-driven customer acquisition.
+
+---
+
+### Phase 4: Evals + Audit
+**Goal:** Enterprise-ready capabilities.
+
+**Deliverables:**
+- [ ] Evaluation Framework module
+- [ ] Audit & Compliance module
+- [ ] Enhanced RBAC
+- [ ] Compliance exports
 
 **Timeline:** 6-8 weeks
 
+**Exit criteria:** Enterprise pilot or LOI.
+
 ---
 
-### Phase 3: Scale & Polish
-**Goal:** Production-ready for multiple large organizations.
+### Phase 5: Scale & Polish
+**Goal:** Production-grade for multiple organizations.
 
 **Deliverables:**
-- [ ] Multi-tenant architecture
-- [ ] Full RBAC and audit logging
+- [ ] Multi-tenant hardening
+- [ ] SSO/SAML
 - [ ] TypeScript SDK
-- [ ] Evaluation framework (basic)
-- [ ] API documentation and developer portal
+- [ ] Auto-instrumentation libraries
+- [ ] API documentation / developer portal
 - [ ] High-availability deployment
-
-**Tech:**
-- Kubernetes deployment
-- Horizontal scaling for all services
-- Multi-region support (optional)
-
-**Timeline:** 8-12 weeks
-
----
-
-### Phase 4: Advanced Capabilities
-**Goal:** Differentiated features for enterprise.
-
-**Deliverables:**
-- [ ] Advanced evaluation (LLM-as-judge, custom evaluators)
-- [ ] Compliance reporting
-- [ ] SSO/SAML integration
-- [ ] Custom integrations (RPA platforms, workflow tools)
-- [ ] Self-hosted deployment option
-- [ ] SLA and support tiers
 
 **Timeline:** Ongoing
 
 ---
 
+## Pricing Model (Draft)
+
+### Option A: Per-Module Pricing
+
+| Tier | Modules Included | Price |
+|------|------------------|-------|
+| Starter | Core + 1 module | $500/mo |
+| Pro | Core + 3 modules | $1,500/mo |
+| Enterprise | All modules + support | Custom |
+
+### Option B: Usage-Based
+
+- Base platform: $200/mo
+- Per 1M cost events: $50
+- Per 1M spans: $100
+- Alerting: $100/mo flat
+- Evals: $0.01 per eval run
+
+### Option C: Bundled Tiers
+
+| Tier | Agents | Modules | Price |
+|------|--------|---------|-------|
+| Starter | Up to 10 | Cost + Traces | $500/mo |
+| Growth | Up to 50 | All except Audit | $2,000/mo |
+| Enterprise | Unlimited | All + SLA | Custom |
+
+**Decision:** Validate with first customers. Start with simple flat pricing, add usage-based as we understand consumption patterns.
+
+---
+
 ## Success Metrics
 
-### Product Metrics
-- Agents registered
-- Spans ingested per day
-- Active organizations
-- Daily active users (dashboard)
+### Phase 1 Targets
+- 3 paying customers
+- $1,500+ MRR
+- <1 week from signup to first cost event
 
-### Business Metrics
-- Monthly recurring revenue (MRR)
-- Customer acquisition cost (CAC)
-- Net revenue retention (NRR)
-- Time to value (first agent registered → first alert triggered)
+### Phase 2 Targets
+- 10 paying customers
+- $10,000+ MRR
+- 50% of customers using 2+ modules
 
-### Technical Metrics
-- Ingestion latency (p99)
-- Query latency (p99)
-- System uptime
-- Data retention compliance
+### Long-term Targets
+- 100 organizations
+- $100K+ MRR
+- Net revenue retention >120%
 
 ---
 
 ## Open Questions
 
-1. **Self-hosted vs SaaS first?** SaaS is faster to iterate; self-hosted may be required for enterprise. Start SaaS, add self-hosted later?
+1. **Managed service vs pure SaaS?**
+   - Some customers may want us to operate AMS for them (white-glove)
+   - This is higher margin but less scalable
+   - Offer both? Managed as premium tier?
 
-2. **Pricing model?** Per-agent, per-span, percentage of spend, or tiered flat fee? Need to validate with early customers.
+2. **Self-hosted option?**
+   - Enterprises may require on-prem
+   - Significant engineering overhead
+   - Defer until enterprise demand is validated
 
-3. **Build vs integrate for storage?** Could use managed services (Supabase, PlanetScale, Clickhouse Cloud) to move faster. Trade-off: cost, lock-in.
+3. **Which integrations first?**
+   - Slack for alerts is obvious
+   - What about PagerDuty, Opsgenie, Datadog forwarding?
+   - Let customer requests drive priority
 
-4. **Scope of "agent"?** Start with LLM agents only, or include RPA/workflow from day one? Broader scope = more complexity.
-
-5. **Evaluation as differentiator?** Evaluation frameworks are nascent. Could be a moat if done well. Worth investing early?
+4. **Open source any components?**
+   - SDK could be open source (drives adoption)
+   - Core platform stays proprietary
+   - Evaluate after Phase 2
 
 ---
 
-## References
+## Principles
 
-- [OpenTelemetry Specification](https://opentelemetry.io/docs/specs/otel/)
-- [OpenLLMetry (OTEL for LLMs)](https://github.com/traceloop/openllmetry)
-- [LangSmith](https://smith.langchain.com/) — competitor reference
-- [Arize AI](https://arize.com/) — competitor reference
-- [Helicone](https://helicone.ai/) — competitor reference
+1. **Ship → Learn → Build.** Don't build features on assumptions. Ship the minimum, learn from customers, then build what they actually need.
+
+2. **Modules earn their place.** A module gets built when customers ask for it (or pay for it). No speculative features.
+
+3. **Infrastructure follows demand.** Start with PostgreSQL. Add ClickHouse when traces need it. Add Redis when alerting needs it. Don't pre-optimize.
+
+4. **Simple > Clever.** Boring technology choices. Clear code. Obvious architecture. Complexity is earned, not assumed.
+
+5. **Revenue validates.** The best signal that something matters is someone paying for it. Prioritize based on what customers will pay for.
 
 ---
 
